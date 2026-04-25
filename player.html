@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embed TV & Kumanda Desteği</title>
+    <style>
+        /* Temel Ayarlar ve TV Ekranı İçin Karanlık Tema */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #121212;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden; /* TV'lerde sayfa kaydırması istenmez */
+        }
+
+        /* Sol Taraf: Video ve Kaynaklar */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .player-wrapper {
+            flex: 1;
+            background-color: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #333;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Kaynak Butonları (Player Altı) */
+        .sources {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            height: 60px;
+        }
+
+        .source-btn {
+            background-color: #1e1e1e;
+            color: #fff;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 10px 25px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .source-btn.active {
+            background-color: #e50914; /* Aktif kaynak rengi (Netflix kırmızısı) */
+        }
+
+        /* Sağ Taraf: Kanal Listesi (Scroll) */
+        .sidebar {
+            width: 350px;
+            background-color: #1a1a1a;
+            border-left: 2px solid #333;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            border-bottom: 2px solid #333;
+            text-align: center;
+        }
+
+        .channel-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Scrollbar gizleme/şekillendirme (TV için genellikle gizlenir) */
+        .channel-list::-webkit-scrollbar { width: 8px; }
+        .channel-list::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+
+        .channel-btn {
+            background-color: #2a2a2a;
+            color: #fff;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 20px;
+            font-size: 18px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .channel-btn.active {
+            border-left: 5px solid #e50914;
+        }
+
+        /* KUMANDA FOCUS (Odaklanma) STİLLERİ - En Önemli Kısım */
+        .focusable:focus {
+            outline: none;
+            border: 2px solid #fff; /* Odaklanınca beyaz çerçeve */
+            background-color: #3a3a3a;
+            transform: scale(1.05); /* Odaklanılan öğe hafif büyür */
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-content">
+        <div class="player-wrapper">
+            <iframe id="video-player" src="" allowfullscreen></iframe>
+        </div>
+        <div class="sources" id="source-container">
+            </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="sidebar-header">Kanallar</div>
+        <div class="channel-list" id="channel-container">
+            </div>
+    </div>
+
+    <script>
+        // --- 1. VERİ YAPISI ---
+        // Farklı kaynaklara sahip kanal listesi
+        const channels = [
+            {
+                id: 1,
+                name: "beIN Sports 1",
+                sources: [
+                    "https://dlstreams.com/stream/stream-62.php", // Kaynak 1
+                    "https://dlstreams.com/cast/stream-62.php",  // Kaynak 2
+					"https://dlstreams.com/watch/stream-62.php",  // Kaynak 3
+					"https://dlstreams.com/plus/stream-62.php",  // Kaynak 4
+					"https://dlstreams.com/casting/stream-62.php",  // Kaynak 5
+					"https://cdnlivetv.tv/api/v1/channels/player/?name=bein+sports+1&code=tr&user=cdnlivetv&plan=free",  // Kaynak 5
+					"https://sports24.cc/buffstreamss/ch91",  // Kaynak 5
+					"https://dlstreams.com/player/stream-62.php"  // Kaynak 6
+                ]
+            },
+            {
+                id: 2,
+                name: "beIN Sports 2",
+                sources: [
+                    "https://dlstreams.com/stream/stream-63.php", // Kaynak 1
+                    "https://dlstreams.com/cast/stream-63.php",  // Kaynak 2
+					"https://dlstreams.com/watch/stream-63.php",  // Kaynak 3
+					"https://dlstreams.com/plus/stream-63.php",  // Kaynak 4
+					"https://dlstreams.com/casting/stream-63.php",  // Kaynak 5
+					"https://dlstreams.com/player/stream-63.php"  // Kaynak 6
+                ]
+            },
+            {
+                id: 3,
+                name: "beIN Sports 3",
+                sources: [
+                    "https://dlstreams.com/stream/stream-64.php", // Kaynak 1
+                    "https://dlstreams.com/cast/stream-64.php",  // Kaynak 2
+					"https://dlstreams.com/watch/stream-64.php",  // Kaynak 3
+					"https://dlstreams.com/plus/stream-64.php",  // Kaynak 4
+					"https://dlstreams.com/casting/stream-64.php",  // Kaynak 5
+					"https://dlstreams.com/player/stream-64.php"  // Kaynak 6
+                ]
+            },
+        ];
+
+        let currentChannelIndex = 0;
+        const player = document.getElementById('video-player');
+        const channelContainer = document.getElementById('channel-container');
+        const sourceContainer = document.getElementById('source-container');
+
+        // --- 2. EKRANI OLUŞTURMA ---
+        function renderChannels() {
+            channels.forEach((channel, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'channel-btn focusable';
+                btn.textContent = channel.name;
+                btn.dataset.index = index;
+                
+                // Tıklama veya OK tuşuyla kanalı aç
+                btn.onclick = () => loadChannel(index);
+                channelContainer.appendChild(btn);
+            });
+        }
+
+        function loadChannel(index) {
+            currentChannelIndex = index;
+            const channel = channels[index];
+            
+            // Aktif kanalın stilini güncelle
+            document.querySelectorAll('.channel-btn').forEach(btn => btn.classList.remove('active'));
+            channelContainer.children[index].classList.add('active');
+
+            // Kaynak butonlarını oluştur
+            sourceContainer.innerHTML = '';
+            channel.sources.forEach((sourceUrl, srcIndex) => {
+                const btn = document.createElement('button');
+                btn.className = 'source-btn focusable';
+                btn.textContent = `C ${srcIndex + 1}`;
+                
+                if(srcIndex === 0) btn.classList.add('active'); // İlk kaynak varsayılan aktif
+
+                btn.onclick = () => {
+                    document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    player.src = sourceUrl;
+                };
+                sourceContainer.appendChild(btn);
+            });
+
+            // İlk kaynağı oynatıcıya yükle
+            player.src = channel.sources[0];
+        }
+
+        // --- 3. KUMANDA DESTEĞİ (Klavye Yönlendirmesi) ---
+        function setupRemoteControl() {
+            document.addEventListener('keydown', function(e) {
+                const active = document.activeElement;
+                // Sadece focusable elementlerdeyken veya hiçbir şeyde değilken çalıştır
+                if (!active.classList.contains('focusable') && active !== document.body) return;
+
+                const isChannel = active.classList.contains('channel-btn');
+                const isSource = active.classList.contains('source-btn');
+
+                switch(e.key) {
+                    case 'ArrowDown': // AŞAĞI TUŞU
+                        e.preventDefault();
+                        if (active === document.body) {
+                            channelContainer.children[0].focus();
+                        } else if (isChannel && active.nextElementSibling) {
+                            active.nextElementSibling.focus();
+                            // Kumanda ile inerken scrollu da takip ettir
+                            active.nextElementSibling.scrollIntoView({ block: 'nearest' });
+                        }
+                        break;
+
+                    case 'ArrowUp': // YUKARI TUŞU
+                        e.preventDefault();
+                        if (isChannel && active.previousElementSibling) {
+                            active.previousElementSibling.focus();
+                            active.previousElementSibling.scrollIntoView({ block: 'nearest' });
+                        }
+                        break;
+
+                    case 'ArrowLeft': // SOLA TUŞU
+                        e.preventDefault();
+                        if (isChannel && sourceContainer.children.length > 0) {
+                            // Kanaldan çıkıp ilk kaynağa git
+                            sourceContainer.children[0].focus();
+                        } else if (isSource && active.previousElementSibling) {
+                            // Kaynaklar arası sola geç
+                            active.previousElementSibling.focus();
+                        }
+                        break;
+
+                    case 'ArrowRight': // SAĞA TUŞU
+                        e.preventDefault();
+                        if (isSource && active.nextElementSibling) {
+                            // Kaynaklar arası sağa geç
+                            active.nextElementSibling.focus();
+                        } else if (isSource) {
+                            // En sağdaki kaynaktaysan, aktif kanala geri dön
+                            channelContainer.children[currentChannelIndex].focus();
+                        }
+                        break;
+
+                    case 'Enter': // OK TUŞU
+                        // Seçili olan butona tıklama efekti ver
+                        if(active.classList.contains('focusable')) {
+                            active.click();
+                        }
+                        break;
+                }
+            });
+        }
+
+        // Uygulamayı Başlat
+        renderChannels();
+        loadChannel(0); // İlk kanalı yükle
+        setupRemoteControl();
+        
+        // Açılışta ilk kanala odaklan
+        setTimeout(() => channelContainer.children[0].focus(), 100);
+
+    </script>
+</body>
+</html>
